@@ -7,14 +7,14 @@ import { JWT_PASSWORD } from "./config.js";
 import { userMiddleware } from "./midlleware.js";
 import bcrypt from "bcrypt";
 import { z } from "zod";
-// import cors from "cors";
+import cors from "cors";
 
 const app = express();
 app.use(express.json());
-// app.use(cors());
+app.use(cors());
 
 const signupSchema = z.object({
-    username: z.string().trim().min(3).max(30),
+    username: z.string().min(3).max(30),
     password: z.string().min(8)
 })
 
@@ -39,34 +39,57 @@ app.post("/api/v1/signup", async (req, res) => {
             message: "User signed up"
         });
     } catch (error) {
+        if (typeof error === "object" && error !== null && "code" in error && error.code === 11000) {
             res.status(409).json({
-            message: "User already exists"
+                message: "Username already exists"
             });
-            throw error;
+            return;
+        }
+
+        console.error("Unable to create user:", error);
+        res.status(500).json({
+            message: "Unable to create account right now"
+        });
+        return;
     }
-        
-    
 });
 
 app.post("/api/v1/signin", async (req, res) => {
-    const username = req.body.username;
-    const password = req.body.password;
+    const result = z.object({
+        username: z.string().min(1).max(30),
+        password: z.string().min(1)
+    }).safeParse(req.body);
 
-    const user = await UserModel.findOne({
-        username
-    });
-
-    if (user && typeof password === "string" && typeof user.password === "string" && await bcrypt.compare(password, user.password)) {
-        const token = jwt.sign({
-            id: user._id.toString()
-        }, JWT_PASSWORD);
-
-        res.json({
-            token
+    if (!result.success) {
+        res.status(400).json({
+            message: "Enter a valid username and password"
         });
-    } else {
+        return;
+    }
+
+    try {
+        const user = await UserModel.findOne({
+            username: result.data.username
+        });
+
+        if (user && typeof user.password === "string" && await bcrypt.compare(result.data.password, user.password)) {
+            const token = jwt.sign({
+                id: user._id.toString()
+            }, JWT_PASSWORD);
+
+            res.json({
+                token
+            });
+            return;
+        }
+
         res.status(403).json({
-            message: "Incorrect credentials"
+            message: "Incorrect username or password"
+        });
+    } catch (error) {
+        console.error("Unable to sign in:", error);
+        res.status(500).json({
+            message: "Unable to sign in right now"
         });
     }
 });

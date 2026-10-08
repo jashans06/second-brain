@@ -8,6 +8,7 @@ export const connectDatabase = async () => {
     }
 
     await mongoose.connect(mongoUrl);
+    console.log(`Connected to MongoDB database "${mongoose.connection.name}"`);
 };
 
 const UserSchema = new Schema({
@@ -18,10 +19,10 @@ const UserSchema = new Schema({
 export const UserModel = model("User", UserSchema);
 
 const ContentSchema = new Schema({
-    title: String,
-    link: String,
+    title: {type: String, required: true},
+    link: {type: String, required: true},
     tags: [{type: mongoose.Types.ObjectId, ref: 'Tag'}],
-    type: String,
+    type: {type: String, enum: ["youtube", "twitter"], required: true},
     userId: {type: mongoose.Types.ObjectId, ref: 'User', required: true },
 })
 
